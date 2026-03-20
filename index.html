@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Social Media AI Automation — Full Architecture</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Azeret+Mono:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root{
+  --bg:#04050a;--s1:#07090f;--s2:#0b0d17;--s3:#0e1020;
+  --bdr:#131828;--bdr2:#1c2238;
+  --lime:#b5f23d;--cyan:#22d3ee;--violet:#8b5cf6;
+  --pink:#f472b6;--orange:#f97316;--gold:#f59e0b;
+  --red:#ef4444;--grn:#22c55e;
+  --txt:#d4dff4;--muted:#3a4d6a;--muted2:#2a3a55;
+  --F:'Syne',sans-serif;--M:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--txt);font-family:var(--F);overflow-x:hidden;}
+
+/* ── HERO ─────────────────────────────────────── */
+.hero{
+  min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+  padding:80px 72px;position:relative;overflow:hidden;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(181,242,61,.04) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 60% at 90% 80%, rgba(139,92,246,.05) 0%, transparent 50%),
+    var(--bg);
+}
+/* grid bg */
+.hero::before{
+  content:'';position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(181,242,61,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(181,242,61,.025) 1px, transparent 1px);
+  background-size:60px 60px;pointer-events:none;
+}
+/* glow orbs */
+.orb{position:absolute;border-radius:50%;pointer-events:none;filter:blur(80px);}
+.orb1{width:400px;height:400px;top:-100px;left:-100px;background:rgba(181,242,61,.03);}
+.orb2{width:300px;height:300px;bottom:50px;right:100px;background:rgba(139,92,246,.04);}
+
+.hero-inner{max-width:1400px;margin:0 auto;width:100%;position:relative;z-index:1;}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(181,242,61,.08);border:1px solid rgba(181,242,61,.2);
+  border-radius:2px;padding:5px 14px;margin-bottom:24px;
+  font-family:var(--M);font-size:10px;color:var(--lime);letter-spacing:.12em;text-transform:uppercase;
+}
+.live{width:6px;height:6px;border-radius:50%;background:var(--lime);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+
+h1{
+  font-size:clamp(40px,6vw,80px);font-weight:800;line-height:.95;
+  letter-spacing:-.04em;color:#fff;
+}
+h1 .l{color:var(--lime);}
+h1 .v{color:var(--violet);}
+h1 .c{color:var(--cyan);}
+.tagline{
+  margin-top:20px;font-size:17px;color:var(--muted);
+  max-width:640px;line-height:1.65;
+}
+
+.hero-stats{
+  display:flex;gap:0;margin-top:48px;
+  border:1px solid var(--bdr);border-radius:10px;
+  background:var(--s1);overflow:hidden;display:inline-flex;
+}
+.hs{padding:20px 32px;border-right:1px solid var(--bdr);display:flex;flex-direction:column;gap:4px;}
+.hs:last-child{border-right:none;}
+.hs-v{font-family:var(--M);font-size:28px;font-weight:500;color:var(--lime);}
+.hs-l{font-size:11px;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;}
+
+/* ── LAYOUT ──────────────────────────────────── */
+.W{max-width:1400px;margin:0 auto;padding:0 56px 120px;}
+.sec{margin-top:80px;}
+.sh{
+  font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:32px;
+  display:flex;align-items:center;gap:14px;
+}
+.sh::after{content:'';flex:1;height:1px;background:var(--bdr);}
+
+/* ── ARCHITECTURE MAP ─────────────────────────── */
+.arch{
+  background:var(--s1);border:1px solid var(--bdr);border-radius:16px;
+  padding:40px 32px;overflow-x:auto;
+}
+.arch-cols{
+  display:grid;
+  grid-template-columns:repeat(6,1fr);
+  gap:12px;min-width:900px;
+}
+.arch-col{display:flex;flex-direction:column;gap:8px;}
+.arch-col-title{
+  font-family:var(--M);font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);text-align:center;padding:6px;
+  border-bottom:1px solid var(--bdr);margin-bottom:4px;
+}
+.anode{
+  border:1.5px solid;border-radius:8px;padding:10px 10px 8px;
+  text-align:center;cursor:default;transition:transform .15s,box-shadow .15s;
+}
+.anode:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.5);}
+.anode-icon{font-size:18px;margin-bottom:4px;}
+.anode-name{font-size:9.5px;font-weight:600;line-height:1.3;letter-spacing:.02em;}
+.anode-sub{font-size:8px;color:var(--muted);margin-top:2px;font-family:var(--M);}
+
+/* node color variants */
+.a-trg{border-color:#22c55e;background:rgba(34,197,94,.07);color:#22c55e;}
+.a-ai {border-color:#8b5cf6;background:rgba(139,92,246,.07);color:#c4b5fd;}
+.a-fmt{border-color:#f59e0b;background:rgba(245,158,11,.07);color:#fbbf24;}
+.a-rt {border-color:#f97316;background:rgba(249,115,22,.07);color:#fdba74;}
+.a-api{border-color:#22d3ee;background:rgba(34,211,238,.07);color:#67e8f9;}
+.a-log{border-color:#b5f23d;background:rgba(181,242,61,.07);color:#b5f23d;}
+
+/* platform badges row */
+.platform-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px;}
+.pbadge{
+  display:flex;align-items:center;gap:10px;
+  background:var(--s1);border:1px solid var(--bdr);border-radius:10px;
+  padding:12px 16px;flex:1;min-width:160px;transition:border-color .2s;
+}
+.pbadge:hover{border-color:var(--bdr2);}
+.pbadge-ic{font-size:22px;flex-shrink:0;}
+.pbadge-name{font-size:12px;font-weight:700;margin-bottom:2px;}
+.pbadge-api{font-family:var(--M);font-size:9px;color:var(--muted);}
+
+/* ── NODE CARDS ──────────────────────────────── */
+.nlist{display:flex;flex-direction:column;gap:12px;}
+.nc{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;overflow:hidden;transition:border-color .2s;}
+.nc:hover{border-color:var(--bdr2);}
+.nch{display:flex;align-items:center;gap:12px;padding:15px 20px;cursor:pointer;user-select:none;}
+.nch:hover{background:rgba(255,255,255,.012);}
+.nn{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--M);font-size:10px;font-weight:500;flex-shrink:0;}
+.nt{flex:1;font-size:13px;font-weight:700;}
+.ntag{font-family:var(--M);font-size:9px;padding:3px 8px;border-radius:3px;letter-spacing:.05em;flex-shrink:0;}
+.nchev{color:var(--muted);font-size:10px;transition:transform .2s;flex-shrink:0;}
+.ncb{padding:20px;display:none;border-top:1px solid var(--bdr);}
+.ncb.open{display:block;}
+
+.cb{
+  background:#030407;border:1px solid var(--bdr);border-radius:8px;
+  padding:16px;font-family:var(--M);font-size:11px;line-height:1.85;
+  color:#4a6080;overflow-x:auto;white-space:pre;max-height:420px;overflow-y:auto;position:relative;
+}
+.cb .kw{color:#8b5cf6;} .cb .s{color:#b5f23d;} .cb .c{color:#1a2840;font-style:italic;}
+.cb .n{color:#f59e0b;} .cb .fn{color:#22d3ee;} .cb .rx{color:#f97316;}
+
+.cpb{position:absolute;top:10px;right:10px;background:var(--s2);border:1px solid var(--bdr);
+  border-radius:4px;padding:4px 10px;font-family:var(--M);font-size:9px;color:var(--muted);
+  cursor:pointer;transition:color .15s,border-color .15s;}
+.cpb:hover{color:var(--lime);border-color:var(--lime);}
+
+.t{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0 14px;}
+.t th{text-align:left;padding:8px 12px;font-family:var(--M);font-size:9px;
+  letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--bdr);background:var(--s2);}
+.t td{padding:9px 12px;border-bottom:1px solid rgba(19,24,40,.6);vertical-align:top;}
+.t tr:last-child td{border-bottom:none;}
+.tk{color:#c4b5fd;font-family:var(--M);font-size:10px;}
+.tv{color:#22d3ee;font-family:var(--M);font-size:10px;word-break:break-all;}
+.td{color:var(--muted);font-size:11px;}
+
+.cl{border-left:3px solid;padding:11px 15px;border-radius:0 8px 8px 0;margin:10px 0;font-size:12.5px;line-height:1.6;}
+.cg{border-color:var(--lime);background:rgba(181,242,61,.05);color:#d9f99d;}
+.cy{border-color:var(--gold);background:rgba(245,158,11,.05);color:#fde68a;}
+.cr{border-color:var(--red);background:rgba(239,68,68,.05);color:#fca5a5;}
+.cv{border-color:var(--violet);background:rgba(139,92,246,.05);color:#ddd6fe;}
+.cc{border-color:var(--cyan);background:rgba(34,211,238,.05);color:#a5f3fc;}
+
+.pl{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:3px;
+  font-family:var(--M);font-size:9px;font-weight:500;letter-spacing:.04em;}
+.pg{background:rgba(181,242,61,.12);color:#b5f23d;}
+.pv{background:rgba(139,92,246,.12);color:#a78bfa;}
+.pc{background:rgba(34,211,238,.12);color:#22d3ee;}
+.py{background:rgba(245,158,11,.12);color:#f59e0b;}
+.pr{background:rgba(239,68,68,.12);color:#f87171;}
+.pp{background:rgba(244,114,182,.12);color:#f472b6;}
+
+/* ── GOOGLE SHEETS SCHEMA ─────────────────────── */
+.schema-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:14px;}
+.schema-card{background:var(--s1);border:1px solid var(--bdr);border-radius:10px;overflow:hidden;}
+.schema-head{
+  padding:12px 18px;border-bottom:1px solid var(--bdr);
+  font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px;
+  background:var(--s2);
+}
+.schema-table{width:100%;border-collapse:collapse;}
+.schema-table th{text-align:left;padding:7px 16px;font-family:var(--M);font-size:9px;
+  color:var(--muted);letter-spacing:.08em;text-transform:uppercase;background:var(--s3);}
+.schema-table td{padding:8px 16px;border-bottom:1px solid rgba(19,24,40,.5);font-size:11px;}
+.schema-table tr:last-child td{border-bottom:none;}
+.col-name{color:#c4b5fd;font-family:var(--M);font-size:10px;font-weight:500;}
+.col-type{color:var(--muted);font-family:var(--M);font-size:9px;}
+.col-desc{color:#6b80a0;font-size:11px;}
+
+/* ── SETUP STEPS ─────────────────────────────── */
+.steps-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+.step{
+  background:var(--s1);border:1px solid var(--bdr);border-radius:10px;
+  padding:20px;display:flex;flex-direction:column;gap:10px;
+  transition:border-color .2s;
+}
+.step:hover{border-color:var(--bdr2);}
+.step-num{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--M);font-size:11px;font-weight:500;flex-shrink:0;
+  background:rgba(181,242,61,.1);color:var(--lime);}
+.step h3{font-size:13px;font-weight:700;}
+.step p{font-size:12px;color:var(--muted);line-height:1.6;}
+code{background:#0a0d17;border:1px solid var(--bdr);border-radius:3px;
+  padding:1px 6px;font-family:var(--M);font-size:10px;color:var(--orange);}
+
+/* ── API TABLE ─────────────────────────────────── */
+.api-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;}
+.api-card{background:var(--s1);border:1px solid var(--bdr);border-radius:10px;padding:18px;}
+.api-card h3{font-size:12px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.api-card ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.api-card li{font-size:11px;color:var(--muted);padding-left:16px;position:relative;line-height:1.5;}
+.api-card li::before{content:'→';position:absolute;left:0;color:var(--lime);}
+
+/* ── SCROLLBAR ─────────────────────────────────── */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="hero-inner">
+    <div class="eyebrow"><div class="live"></div> n8n Workflow · Production Architecture · v1.0</div>
+    <h1>Social Media<br><span class="l">AI Automation</span><br><span class="v">Full</span> <span class="c">Stack</span></h1>
+    <p class="tagline">End-to-end content generation, scheduling, multi-platform posting, engagement analytics, auto DM replies — built for startups scaling to 100K+ followers.</p>
+    <div class="hero-stats">
+      <div class="hs"><span class="hs-v">28</span><span class="hs-l">Total Nodes</span></div>
+      <div class="hs"><span class="hs-v">6</span><span class="hs-l">Platforms</span></div>
+      <div class="hs"><span class="hs-v">3</span><span class="hs-l">Sub-Workflows</span></div>
+      <div class="hs"><span class="hs-v">GPT-4o</span><span class="hs-l">AI Engine</span></div>
+      <div class="hs"><span class="hs-v">∞</span><span class="hs-l">Scale</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="W">
+
+  <!-- PLATFORMS -->
+  <div class="sec">
+    <div class="sh">Supported Platforms</div>
+    <div class="platform-row">
+      <div class="pbadge"><div class="pbadge-ic">📸</div><div><div class="pbadge-name" style="color:#f472b6">Instagram</div><div class="pbadge-api">Graph API v19.0</div></div></div>
+      <div class="pbadge"><div class="pbadge-ic">📘</div><div><div class="pbadge-name" style="color:#60a5fa">Facebook</div><div class="pbadge-api">Graph API v19.0</div></div></div>
+      <div class="pbadge"><div class="pbadge-ic">💼</div><div><div class="pbadge-name" style="color:#38bdf8">LinkedIn</div><div class="pbadge-api">UGC Posts API v2</div></div></div>
+      <div class="pbadge"><div class="pbadge-ic">🐦</div><div><div class="pbadge-name" style="color:#22d3ee">Twitter / X</div><div class="pbadge-api">Twitter API v2</div></div></div>
+      <div class="pbadge"><div class="pbadge-ic">▶</div><div><div class="pbadge-name" style="color:#f87171">YouTube</div><div class="pbadge-api">YouTube Data API v3</div></div></div>
+      <div class="pbadge"><div class="pbadge-ic">🎵</div><div><div class="pbadge-name" style="color:#b5f23d">TikTok</div><div class="pbadge-api">TikTok Content API v2</div></div></div>
+    </div>
+  </div>
+
+  <!-- ARCHITECTURE MAP -->
+  <div class="sec">
+    <div class="sh">Workflow Architecture Map</div>
+    <div class="arch">
+      <div class="arch-cols">
+
+        <div class="arch-col">
+          <div class="arch-col-title">① Triggers</div>
+          <div class="anode a-trg"><div class="anode-icon">⏰</div><div class="anode-name">Schedule</div><div class="anode-sub">Every 1h</div></div>
+          <div class="anode a-trg"><div class="anode-icon">▶</div><div class="anode-name">Manual</div><div class="anode-sub">On demand</div></div>
+          <div class="anode a-trg"><div class="anode-icon">📊</div><div class="anode-name">Sheets Trigger</div><div class="anode-sub">New row</div></div>
+          <div class="anode a-trg"><div class="anode-icon">📰</div><div class="anode-name">RSS Feed</div><div class="anode-sub">Trending topics</div></div>
+        </div>
+
+        <div class="arch-col">
+          <div class="arch-col-title">② Data Input</div>
+          <div class="anode a-api"><div class="anode-icon">📊</div><div class="anode-name">Google Sheets</div><div class="anode-sub">Content Queue</div></div>
+          <div class="anode a-fmt"><div class="anode-icon">🔀</div><div class="anode-name">Filter Node</div><div class="anode-sub">Due for posting</div></div>
+          <div class="anode a-fmt"><div class="anode-icon">🛑</div><div class="anode-name">IF Skip</div><div class="anode-sub">Nothing due?</div></div>
+        </div>
+
+        <div class="arch-col">
+          <div class="arch-col-title">③ AI Engine</div>
+          <div class="anode a-ai"><div class="anode-icon">🧠</div><div class="anode-name">OpenAI GPT-4o</div><div class="anode-sub">Full content pkg</div></div>
+          <div class="anode a-fmt"><div class="anode-icon">⚙️</div><div class="anode-name">Format Node</div><div class="anode-sub">Parse + structure</div></div>
+          <div class="anode a-rt"><div class="anode-icon">⇀</div><div class="anode-name">Platform Router</div><div class="anode-sub">Switch node</div></div>
+        </div>
+
+        <div class="arch-col">
+          <div class="arch-col-title">④ Post APIs</div>
+          <div class="anode a-api"><div class="anode-icon">💼</div><div class="anode-name">LinkedIn</div><div class="anode-sub">UGC Post</div></div>
+          <div class="anode a-api"><div class="anode-icon">📸</div><div class="anode-name">Instagram</div><div class="anode-sub">Media + Publish</div></div>
+          <div class="anode a-api"><div class="anode-icon">🐦</div><div class="anode-name">Twitter</div><div class="anode-sub">Tweet API v2</div></div>
+          <div class="anode a-api"><div class="anode-icon">📘</div><div class="anode-name">Facebook</div><div class="anode-sub">Page Feed</div></div>
+          <div class="anode a-api"><div class="anode-icon">▶</div><div class="anode-name">YouTube</div><div class="anode-sub">Data API v3</div></div>
+          <div class="anode a-api"><div class="anode-icon">🎵</div><div class="anode-name">TikTok</div><div class="anode-sub">Content API</div></div>
+        </div>
+
+        <div class="arch-col">
+          <div class="arch-col-title">⑤ Logging</div>
+          <div class="anode a-fmt"><div class="anode-icon">📦</div><div class="anode-name">Collector</div><div class="anode-sub">Normalize response</div></div>
+          <div class="anode a-log"><div class="anode-icon">📊</div><div class="anode-name">Update Queue</div><div class="anode-sub">Status → Posted</div></div>
+          <div class="anode a-log"><div class="anode-icon">📋</div><div class="anode-name">Append Logs</div><div class="anode-sub">PostLogs sheet</div></div>
+          <div class="anode a-fmt"><div class="anode-icon">🔴</div><div class="anode-name">Error Router</div><div class="anode-sub">IF failed</div></div>
+        </div>
+
+        <div class="arch-col">
+          <div class="arch-col-title">⑥ Alerts + Analytics</div>
+          <div class="anode a-log"><div class="anode-icon">📱</div><div class="anode-name">Telegram Alert</div><div class="anode-sub">Error + Success</div></div>
+          <div class="anode a-ai"><div class="anode-icon">📈</div><div class="anode-name">Fetch Metrics</div><div class="anode-sub">Daily analytics</div></div>
+          <div class="anode a-ai"><div class="anode-icon">🧠</div><div class="anode-name">AI Insights</div><div class="anode-sub">GPT-4o-mini</div></div>
+          <div class="anode a-log"><div class="anode-icon">💬</div><div class="anode-name">Auto DM</div><div class="anode-sub">Lead gen bot</div></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 SUB-WORKFLOWS -->
+  <div class="sec">
+    <div class="sh">3 Sub-Workflows</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+
+      <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:22px">
+        <div style="font-size:22px;margin-bottom:10px">🚀</div>
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:8px">Main Posting Workflow</h3>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">Runs every hour. Reads Google Sheets queue, generates AI content, routes to 6 platforms, logs results, sends Telegram alerts.</p>
+        <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="pl pg">Every 1h</span><span class="pl pv">GPT-4o</span><span class="pl pc">6 APIs</span>
+        </div>
+      </div>
+
+      <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:22px">
+        <div style="font-size:22px;margin-bottom:10px">📈</div>
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:8px">Analytics Workflow</h3>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">Runs daily. Fetches engagement data from posted content, runs AI analysis, logs insights and recommendations to Analytics sheet.</p>
+        <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="pl pg">Daily</span><span class="pl pv">GPT-4o-mini</span><span class="pl py">Insights</span>
+        </div>
+      </div>
+
+      <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:22px">
+        <div style="font-size:22px;margin-bottom:10px">💬</div>
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:8px">Lead Gen + DM Bot</h3>
+        <p style="font-size:12px;color:var(--muted);line-height:1.6">Runs every 15 min. Monitors Instagram DMs, generates contextual AI replies, sends automated responses. Captures leads.</p>
+        <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="pl pg">Every 15min</span><span class="pl pv">GPT-4o-mini</span><span class="pl pp">Auto-Reply</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- NODE BY NODE -->
+  <div class="sec">
+    <div class="sh">Node-by-Node Explanation</div>
+    <div class="nlist">
+
+      <!-- N1: Config + Filter -->
+      <div class="nc" id="nc1">
+        <div class="nch" onclick="tog('1')">
+          <div class="nn" style="background:rgba(34,197,94,.15);color:#22c55e">01</div>
+          <div class="nt">⏰ + 📊 Trigger → Google Sheets Read → Filter</div>
+          <span class="ntag" style="background:rgba(34,197,94,.1);color:#22c55e">TRIGGER + DATA</span>
+          <span class="nchev" id="ch1">▼</span>
+        </div>
+        <div class="ncb" id="nb1">
+          <div class="cl cc">Runs hourly. Reads the ContentQueue sheet filtering rows where <code>Status=Ready</code>. The Filter code node then checks if the <code>BestTimeSlot</code> matches the current hour — only due posts proceed.</div>
+          <div class="cb"><button class="cpb" onclick="cp(this)">COPY</button><span class="c">// BestTimeSlot format: "14" (hour) or "2026-03-21 14" (date+hour)</span>
+<span class="kw">const</span> currentHour = <span class="kw">new</span> <span class="fn">Date</span>().<span class="fn">getHours</span>();
+<span class="kw">const</span> isDue = (!slot) ||
+  (scheduledDate === currentDay && scheduledHour === currentHour);
+<span class="kw">if</span> (!isDue) <span class="kw">continue</span>;  <span class="c">// skip — not time yet</span></div>
+          <table class="t">
+            <tr><th>Sheet Column</th><th>Purpose</th></tr>
+            <tr><td class="tk">ID</td><td class="td">Unique row ID for updates</td></tr>
+            <tr><td class="tk">Topic</td><td class="td">What the post is about</td></tr>
+            <tr><td class="tk">RawContent</td><td class="td">Brief, bullets, or draft</td></tr>
+            <tr><td class="tk">Platforms</td><td class="td">Comma-separated: linkedin,instagram,twitter</td></tr>
+            <tr><td class="tk">BestTimeSlot</td><td class="td">Hour (0-23) or "YYYY-MM-DD HH"</td></tr>
+            <tr><td class="tk">MediaURL</td><td class="td">Image/video URL (Cloudinary / Drive)</td></tr>
+            <tr><td class="tk">Status</td><td class="td">Ready → Posted / Failed</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- N2: OpenAI -->
+      <div class="nc" id="nc2">
+        <div class="nch" onclick="tog('2')">
+          <div class="nn" style="background:rgba(139,92,246,.15);color:#a78bfa">02</div>
+          <div class="nt">🧠 OpenAI GPT-4o — Generate Full Content Package</div>
+          <span class="ntag" style="background:rgba(139,92,246,.1);color:#a78bfa">AI NODE</span>
+          <span class="nchev" id="ch2">▼</span>
+        </div>
+        <div class="ncb" id="nb2">
+          <div class="cl cv">One AI call generates ALL 6 platform versions simultaneously. Returns structured JSON with LinkedIn, Instagram, Twitter, Facebook, YouTube, and TikTok content — each platform-optimized.</div>
+          <table class="t">
+            <tr><th>Platform</th><th>Content Type</th><th>Length</th></tr>
+            <tr><td class="tk">LinkedIn</td><td class="td">Professional storytelling + 3 insights + CTA</td><td class="td">150–300 words</td></tr>
+            <tr><td class="tk">Instagram</td><td class="td">Engaging caption + emoji-rich + story text</td><td class="td">50–150 words</td></tr>
+            <tr><td class="tk">Twitter</td><td class="td">Punchy tweet + optional 3-tweet thread</td><td class="td">Under 250 chars</td></tr>
+            <tr><td class="tk">Facebook</td><td class="td">Friendly post + question to boost comments</td><td class="td">100–200 words</td></tr>
+            <tr><td class="tk">YouTube</td><td class="td">Title + full description + tags</td><td class="td">Title ≤60 chars</td></tr>
+            <tr><td class="tk">TikTok</td><td class="td">3-second hook script + short caption</td><td class="td">Under 100 chars</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- N3: Format -->
+      <div class="nc" id="nc3">
+        <div class="nch" onclick="tog('3')">
+          <div class="nn" style="background:rgba(245,158,11,.15);color:#fbbf24">03</div>
+          <div class="nt">⚙️ Format Node — Parse AI + Build Per-Platform Posts</div>
+          <span class="ntag" style="background:rgba(245,158,11,.1);color:#fbbf24">CODE NODE</span>
+          <span class="nchev" id="ch3">▼</span>
+        </div>
+        <div class="ncb" id="nb3">
+          <div class="cl cy">Takes the single AI response and explodes it into N items — one per platform. Each item has its full caption with hashtags appended. Passes all config metadata forward.</div>
+          <div class="cb"><button class="cpb" onclick="cp(this)">COPY</button><span class="c">// One input → N outputs (one per platform)</span>
+<span class="kw">for</span> (<span class="kw">const</span> platform <span class="kw">of</span> platforms) {
+  <span class="kw">const</span> hashtagStr = hashtags.<span class="fn">map</span>(h => h.<span class="fn">startsWith</span>(<span class="s">'#'</span>) ? h : <span class="s">`#${h}`</span>).<span class="fn">join</span>(<span class="s">' '</span>);
+  <span class="kw">const</span> fullCaption = platform === <span class="s">'twitter'</span>
+    ? caption  <span class="c">// Twitter: no extra hashtags needed</span>
+    : <span class="s">`${caption}\n\n${hashtagStr}`</span>.<span class="fn">trim</span>();
+  <span class="c">// → emits one item per platform</span>
+}</div>
+        </div>
+      </div>
+
+      <!-- N4: Platform APIs -->
+      <div class="nc" id="nc4">
+        <div class="nch" onclick="tog('4')">
+          <div class="nn" style="background:rgba(34,211,238,.12);color:#22d3ee">04</div>
+          <div class="nt">🌐 Platform API Nodes — LinkedIn, Instagram, Twitter, Facebook, YouTube, TikTok</div>
+          <span class="ntag" style="background:rgba(34,211,238,.1);color:#22d3ee">HTTP NODES</span>
+          <span class="nchev" id="ch4">▼</span>
+        </div>
+        <div class="ncb" id="nb4">
+          <div class="cl cc">Each runs in parallel after the Switch router. All have: Retry 3×, 5s wait, continueOnFail. Instagram requires 2 steps: create container then publish.</div>
+          <table class="t">
+            <tr><th>Platform</th><th>API Endpoint</th><th>Auth</th><th>Key Config</th></tr>
+            <tr><td class="tk">LinkedIn</td><td class="tv">api.linkedin.com/v2/ugcPosts</td><td class="td">OAuth2</td><td class="td">author URN required</td></tr>
+            <tr><td class="tk">Instagram</td><td class="tv">graph.facebook.com/v19.0/{id}/media</td><td class="td">Page Token</td><td class="td">2-step: create → publish</td></tr>
+            <tr><td class="tk">Twitter</td><td class="tv">api.twitter.com/2/tweets</td><td class="td">OAuth2</td><td class="td">280 char limit enforced</td></tr>
+            <tr><td class="tk">Facebook</td><td class="tv">graph.facebook.com/v19.0/{page}/feed</td><td class="td">Page Token</td><td class="td">Page access token</td></tr>
+            <tr><td class="tk">YouTube</td><td class="tv">googleapis.com/upload/youtube/v3/videos</td><td class="td">OAuth2</td><td class="td">Needs video file URL</td></tr>
+            <tr><td class="tk">TikTok</td><td class="tv">open.tiktokapis.com/v2/post/publish</td><td class="td">Bearer token</td><td class="td">Video URL pull method</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- N5: Error Handling -->
+      <div class="nc" id="nc5">
+        <div class="nch" onclick="tog('5')">
+          <div class="nn" style="background:rgba(239,68,68,.12);color:#f87171">05</div>
+          <div class="nt">🔴 Error Handling + Telegram Notifications</div>
+          <span class="ntag" style="background:rgba(239,68,68,.1);color:#f87171">ERROR HANDLING</span>
+          <span class="nchev" id="ch5">▼</span>
+        </div>
+        <div class="ncb" id="nb5">
+          <div class="cl cg">Every API node has <code>continueOnFail: true</code>. The Collector normalizes success/fail. The IF node routes failures to Telegram error alert, successes to success alert.</div>
+          <div class="cb"><button class="cpb" onclick="cp(this)">COPY</button><span class="c">// Error message sent to Telegram</span>
+<span class="s">`🔴 *POST FAILED*
+📍 Platform: ${platform}
+📝 Topic: ${topic}
+❌ Error: ${error}
+🕐 Time: ${posted_at}`</span>
+
+<span class="c">// Success message</span>
+<span class="s">`✅ *POST PUBLISHED*
+📍 Platform: ${platform}
+🔗 URL: ${post_url}`</span></div>
+          <table class="t">
+            <tr><th>Error Type</th><th>Handling</th></tr>
+            <tr><td class="tk">API 401/403</td><td class="td">Log + Telegram alert (credentials expired)</td></tr>
+            <tr><td class="tk">API 429</td><td class="td">Retry 3× with exponential backoff</td></tr>
+            <tr><td class="tk">Network timeout</td><td class="td">Retry 3×, then log as failed</td></tr>
+            <tr><td class="tk">AI parse error</td><td class="td">Fallback to raw content template</td></tr>
+            <tr><td class="tk">Empty content</td><td class="td">Skip row, log warning</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- N6: Lead Gen -->
+      <div class="nc" id="nc6">
+        <div class="nch" onclick="tog('6')">
+          <div class="nn" style="background:rgba(244,114,182,.12);color:#f472b6">06</div>
+          <div class="nt">💬 Lead Gen — Auto DM Bot + Comment Replies</div>
+          <span class="ntag" style="background:rgba(244,114,182,.1);color:#f472b6">BONUS FEATURE</span>
+          <span class="nchev" id="ch6">▼</span>
+        </div>
+        <div class="ncb" id="nb6">
+          <div class="cl cv">Runs every 15 minutes. Fetches new DMs from Instagram API. Each message is sent to GPT-4o-mini with brand context. AI generates a contextual reply. Reply is sent back via Graph API.</div>
+          <table class="t">
+            <tr><th>DM Intent</th><th>AI Response Strategy</th></tr>
+            <tr><td class="tk">Pricing question</td><td class="td">Explain value + link to website</td></tr>
+            <tr><td class="tk">Service inquiry</td><td class="td">Describe AI automation services</td></tr>
+            <tr><td class="tk">Complaint</td><td class="td">Apologize + offer escalation</td></tr>
+            <tr><td class="tk">General interest</td><td class="td">Engage + ask qualifying question</td></tr>
+            <tr><td class="tk">Partnership</td><td class="td">Express interest + request email</td></tr>
+          </table>
+          <div class="cl cy">⚠️ Add a deduplication check to avoid replying to the same DM twice. Store replied conversation IDs in Google Sheets or n8n static data.</div>
+        </div>
+      </div>
+
+      <!-- N7: Analytics -->
+      <div class="nc" id="nc7">
+        <div class="nch" onclick="tog('7')">
+          <div class="nn" style="background:rgba(181,242,61,.12);color:#b5f23d">07</div>
+          <div class="nt">📈 Daily Analytics — Fetch Metrics + AI Insights</div>
+          <span class="ntag" style="background:rgba(181,242,61,.1);color:#b5f23d">ANALYTICS</span>
+          <span class="nchev" id="ch7">▼</span>
+        </div>
+        <div class="ncb" id="nb7">
+          <div class="cl cg">Runs daily at midnight. Reads PostLogs sheet, fetches engagement (likes, comments, shares, reach) from FB/IG Graph API, sends batch to GPT-4o-mini for weekly insights.</div>
+          <table class="t">
+            <tr><th>Metric</th><th>Source</th><th>Stored In</th></tr>
+            <tr><td class="tk">Likes / Reactions</td><td class="td">Graph API</td><td class="td">Analytics sheet</td></tr>
+            <tr><td class="tk">Comments</td><td class="td">Graph API</td><td class="td">Analytics sheet</td></tr>
+            <tr><td class="tk">Shares / Retweets</td><td class="td">Graph API / Twitter API</td><td class="td">Analytics sheet</td></tr>
+            <tr><td class="tk">Reach / Impressions</td><td class="td">Graph API insights</td><td class="td">Analytics sheet</td></tr>
+            <tr><td class="tk">AI Recommendations</td><td class="td">GPT-4o-mini analysis</td><td class="td">Analytics sheet</td></tr>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- GOOGLE SHEETS SCHEMA -->
+  <div class="sec">
+    <div class="sh">Google Sheets Schema (4 Tabs)</div>
+    <div class="schema-grid">
+
+      <div class="schema-card">
+        <div class="schema-head">📊 ContentQueue — Main Input Sheet</div>
+        <table class="schema-table">
+          <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+          <tr><td class="col-name">ID</td><td class="col-type">text</td><td class="col-desc">Unique ID (e.g., POST_001)</td></tr>
+          <tr><td class="col-name">Topic</td><td class="col-type">text</td><td class="col-desc">Post topic / headline</td></tr>
+          <tr><td class="col-name">RawContent</td><td class="col-type">text</td><td class="col-desc">Brief, bullets, or draft</td></tr>
+          <tr><td class="col-name">Platforms</td><td class="col-type">text</td><td class="col-desc">linkedin,instagram,twitter</td></tr>
+          <tr><td class="col-name">MediaURL</td><td class="col-type">url</td><td class="col-desc">Image/video (Cloudinary URL)</td></tr>
+          <tr><td class="col-name">BestTimeSlot</td><td class="col-type">text</td><td class="col-desc">Hour (14) or date+hour</td></tr>
+          <tr><td class="col-name">Tone</td><td class="col-type">text</td><td class="col-desc">professional/casual/bold</td></tr>
+          <tr><td class="col-name">Status</td><td class="col-type">enum</td><td class="col-desc">Ready → Posted / Failed</td></tr>
+          <tr><td class="col-name">PostURL</td><td class="col-type">url</td><td class="col-desc">Published post link</td></tr>
+          <tr><td class="col-name">PostID</td><td class="col-type">text</td><td class="col-desc">Platform post ID</td></tr>
+          <tr><td class="col-name">PostedAt</td><td class="col-type">datetime</td><td class="col-desc">ISO timestamp</td></tr>
+        </table>
+      </div>
+
+      <div class="schema-card">
+        <div class="schema-head">📋 PostLogs — Execution Log</div>
+        <table class="schema-table">
+          <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+          <tr><td class="col-name">Timestamp</td><td class="col-type">datetime</td><td class="col-desc">When posted</td></tr>
+          <tr><td class="col-name">Platform</td><td class="col-type">text</td><td class="col-desc">linkedin / instagram / etc</td></tr>
+          <tr><td class="col-name">Topic</td><td class="col-type">text</td><td class="col-desc">Post topic</td></tr>
+          <tr><td class="col-name">Status</td><td class="col-type">enum</td><td class="col-desc">posted / failed</td></tr>
+          <tr><td class="col-name">PostURL</td><td class="col-type">url</td><td class="col-desc">Direct post link</td></tr>
+          <tr><td class="col-name">PostID</td><td class="col-type">text</td><td class="col-desc">API post ID</td></tr>
+          <tr><td class="col-name">Error</td><td class="col-type">text</td><td class="col-desc">Error message if failed</td></tr>
+        </table>
+      </div>
+
+      <div class="schema-card">
+        <div class="schema-head">📈 Analytics — Daily Metrics</div>
+        <table class="schema-table">
+          <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+          <tr><td class="col-name">Date</td><td class="col-type">date</td><td class="col-desc">Analytics date</td></tr>
+          <tr><td class="col-name">Platform</td><td class="col-type">text</td><td class="col-desc">Which platform</td></tr>
+          <tr><td class="col-name">PostID</td><td class="col-type">text</td><td class="col-desc">Reference to post</td></tr>
+          <tr><td class="col-name">Likes</td><td class="col-type">number</td><td class="col-desc">Like count</td></tr>
+          <tr><td class="col-name">Comments</td><td class="col-type">number</td><td class="col-desc">Comment count</td></tr>
+          <tr><td class="col-name">Shares</td><td class="col-type">number</td><td class="col-desc">Share/RT count</td></tr>
+          <tr><td class="col-name">Reach</td><td class="col-type">number</td><td class="col-desc">Unique accounts reached</td></tr>
+          <tr><td class="col-name">Insights</td><td class="col-type">text</td><td class="col-desc">AI recommendations</td></tr>
+        </table>
+      </div>
+
+      <div class="schema-card">
+        <div class="schema-head">💬 Leads — DM Lead Captures</div>
+        <table class="schema-table">
+          <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+          <tr><td class="col-name">Timestamp</td><td class="col-type">datetime</td><td class="col-desc">When DM received</td></tr>
+          <tr><td class="col-name">Platform</td><td class="col-type">text</td><td class="col-desc">instagram / linkedin</td></tr>
+          <tr><td class="col-name">Username</td><td class="col-type">text</td><td class="col-desc">Sender username</td></tr>
+          <tr><td class="col-name">Message</td><td class="col-type">text</td><td class="col-desc">Original DM text</td></tr>
+          <tr><td class="col-name">AIReply</td><td class="col-type">text</td><td class="col-desc">Response sent</td></tr>
+          <tr><td class="col-name">Intent</td><td class="col-type">text</td><td class="col-desc">pricing/inquiry/other</td></tr>
+          <tr><td class="col-name">FollowUp</td><td class="col-type">bool</td><td class="col-desc">Needs human follow-up?</td></tr>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SETUP -->
+  <div class="sec">
+    <div class="sh">Setup Instructions (8 Steps)</div>
+    <div class="steps-grid">
+      <div class="step"><div class="step-num">1</div><h3>Import Workflow</h3><p>In n8n: <strong>Settings → Import Workflow</strong> → paste JSON. All 28 nodes will appear pre-wired across 3 sub-workflows.</p></div>
+      <div class="step"><div class="step-num">2</div><h3>Create Google Sheet</h3><p>Create a sheet with 4 tabs: <code>ContentQueue</code>, <code>PostLogs</code>, <code>Analytics</code>, <code>Leads</code>. Add column headers from schema above.</p></div>
+      <div class="step"><div class="step-num">3</div><h3>OpenAI API Key</h3><p>Add OpenAI credential in n8n Credentials. Model: <code>gpt-4o</code> for main, <code>gpt-4o-mini</code> for analytics/DM to save costs.</p></div>
+      <div class="step"><div class="step-num">4</div><h3>Platform Credentials</h3><p>Add OAuth2 credentials for LinkedIn, Twitter, YouTube. For Instagram/Facebook, use <code>n8n Variables</code> to store Page Tokens.</p></div>
+      <div class="step"><div class="step-num">5</div><h3>Set n8n Variables</h3><p>In n8n Settings → Variables: <code>INSTAGRAM_BUSINESS_ID</code>, <code>INSTAGRAM_ACCESS_TOKEN</code>, <code>FACEBOOK_PAGE_ID</code>, <code>FACEBOOK_PAGE_TOKEN</code>, <code>TIKTOK_ACCESS_TOKEN</code>, <code>TELEGRAM_CHAT_ID</code></p></div>
+      <div class="step"><div class="step-num">6</div><h3>Update LinkedIn URN</h3><p>In the LinkedIn node JSON body, replace <code>YOUR_LINKEDIN_PERSON_ID</code> with your profile URN. Get it from <code>GET /v2/me</code> API call.</p></div>
+      <div class="step"><div class="step-num">7</div><h3>Test with 1 Row</h3><p>Add 1 row to ContentQueue: set Topic, RawContent, Platforms=<code>linkedin</code>, Status=<code>Ready</code>, leave BestTimeSlot empty (posts immediately).</p></div>
+      <div class="step"><div class="step-num">8</div><h3>Activate All 3 Schedules</h3><p>Enable: <code>⏰ Schedule Trigger (Every Hour)</code>, <code>⏰ Analytics Trigger (Daily)</code>, <code>⏰ DM Monitor (Every 15min)</code>. Disable Manual Triggers in production.</p></div>
+    </div>
+  </div>
+
+  <!-- API REQUIREMENTS -->
+  <div class="sec">
+    <div class="sh">Required API Integrations</div>
+    <div class="api-grid">
+      <div class="api-card">
+        <h3 style="color:#60a5fa">📘 Meta / Facebook Graph API</h3>
+        <ul>
+          <li>Facebook Developer App with <strong>pages_manage_posts</strong> permission</li>
+          <li>Instagram Business Account linked to Facebook Page</li>
+          <li>Long-lived Page Access Token (60-day, auto-refresh)</li>
+          <li>Instagram Graph API for media upload + DM access</li>
+          <li>instagram_manage_messages permission for DM bot</li>
+        </ul>
+      </div>
+      <div class="api-card">
+        <h3 style="color:#38bdf8">💼 LinkedIn API</h3>
+        <ul>
+          <li>LinkedIn Developer App with <strong>w_member_social</strong> permission</li>
+          <li>OAuth 2.0 access token (60-day)</li>
+          <li>Author URN: call GET /v2/me to get person ID</li>
+          <li>For company pages: use organization URN instead</li>
+          <li>r_liteprofile + w_member_social scopes</li>
+        </ul>
+      </div>
+      <div class="api-card">
+        <h3 style="color:#22d3ee">🐦 Twitter / X API</h3>
+        <ul>
+          <li>Twitter Developer Account (Basic tier minimum)</li>
+          <li>OAuth 2.0 with PKCE for user auth</li>
+          <li>tweet.write + offline.access scopes</li>
+          <li>For media: use v1.1 media/upload endpoint first</li>
+          <li>Rate limit: 50 tweets/15min (Basic tier)</li>
+        </ul>
+      </div>
+      <div class="api-card">
+        <h3 style="color:#f87171">▶ YouTube Data API v3</h3>
+        <ul>
+          <li>Google Cloud Console project with YouTube Data API v3 enabled</li>
+          <li>OAuth 2.0 credentials (Web app type)</li>
+          <li>Scopes: youtube.upload + youtube</li>
+          <li>Video file must be accessible via public URL for upload</li>
+          <li>Shorts: video ≤60s, vertical 9:16, #Shorts in title/desc</li>
+        </ul>
+      </div>
+      <div class="api-card">
+        <h3 style="color:#b5f23d">🎵 TikTok Content Posting API</h3>
+        <ul>
+          <li>TikTok for Developers account + app creation</li>
+          <li>Content Posting API access (requires approval)</li>
+          <li>Scopes: video.publish + video.upload</li>
+          <li>Video URL must be publicly accessible (no auth required)</li>
+          <li>Server-to-server: use PULL_FROM_URL source type</li>
+        </ul>
+      </div>
+      <div class="api-card">
+        <h3 style="color:#a78bfa">🧠 OpenAI API</h3>
+        <ul>
+          <li>OpenAI API key (GPT-4o tier recommended)</li>
+          <li>Cost estimate: ~$0.02-0.05 per content package</li>
+          <li>Use GPT-4o-mini for analytics/DM replies (10× cheaper)</li>
+          <li>Set max_tokens: 2000 for main, 500 for quick replies</li>
+          <li>Temperature: 0.7 content, 0.4 analytics, 0.6 DMs</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCALE TIPS -->
+  <div class="sec">
+    <div class="sh">Scalable Architecture for 100K+ Followers</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px">
+      <div class="cl cg"><strong>🔁 Content Cadence</strong><br>Post 3-4x/week on LinkedIn, 1x/day Instagram, 3-5x/day Twitter, 2-3x/week Facebook. Set BestTimeSlot per platform in your queue sheet.</div>
+      <div class="cl cv"><strong>🖼 Media Pipeline</strong><br>Use Cloudinary for auto-resizing. Store master images, generate platform-specific sizes (1:1 for IG, 16:9 for YT, 9:16 for TikTok/Reels) via Cloudinary transformations.</div>
+      <div class="cl cc"><strong>📊 A/B Testing</strong><br>Add a "Variant" column to ContentQueue. Run 2 versions of a post. Compare engagement in Analytics sheet. Let AI pick winners automatically.</div>
+      <div class="cl cy"><strong>⚡ Queue System</strong><br>Add a separate "ContentIdeas" sheet. Use a second workflow to auto-fill ContentQueue from RSS + AI ideas daily. Never run out of content.</div>
+      <div class="cl cg"><strong>🛡 Rate Limiting</strong><br>Add a Wait node (2-5s) between platform posts. Keep batch size at 1 per run. Use n8n's built-in retry with exponential backoff (5s, 10s, 30s).</div>
+      <div class="cl cv"><strong>🔐 Token Refresh</strong><br>Meta tokens expire in 60 days. Add a separate workflow that runs monthly to refresh tokens via OAuth refresh endpoint and update n8n Variables.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function tog(id){
+  const b=document.getElementById('nb'+id),c=document.getElementById('ch'+id);
+  if(!b)return;
+  const open=b.classList.contains('open');
+  b.classList.toggle('open',!open);
+  if(c)c.style.transform=open?'':'rotate(180deg)';
+}
+function cp(btn){
+  const t=btn.parentElement.innerText.replace('COPY\n','').trim();
+  navigator.clipboard.writeText(t).then(()=>{
+    btn.textContent='COPIED ✓';btn.style.color='#b5f23d';btn.style.borderColor='#b5f23d';
+    setTimeout(()=>{btn.textContent='COPY';btn.style.color='';btn.style.borderColor='';},1800);
+  });
+}
+// Open first 3 by default
+['1','2','3'].forEach(id=>tog(id));
+</script>
+</body>
+</html>

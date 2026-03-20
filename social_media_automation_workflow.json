@@ -1,0 +1,817 @@
+{
+  "name": "🚀 Social Media AI Automation — Full Stack (Instagram + Facebook + LinkedIn + Twitter + YouTube + TikTok)",
+  "nodes": [
+
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 1 }] }
+      },
+      "id": "node-cron-001",
+      "name": "⏰ Schedule Trigger (Every Hour)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-10000, 400],
+      "notes": "Runs every hour to check for new content rows to publish"
+    },
+
+    {
+      "parameters": {},
+      "id": "node-manual-001",
+      "name": "▶ Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-10000, 560]
+    },
+
+    {
+      "parameters": {
+        "documentId": { "value": "YOUR_GOOGLE_SHEET_ID" },
+        "sheetName": { "value": "ContentQueue" },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Ready"
+            }
+          ]
+        },
+        "options": { "returnAllMatches": true }
+      },
+      "id": "node-sheets-read-001",
+      "name": "📊 Google Sheets — Read Content Queue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [-9760, 480],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_GOOGLE_SHEETS_CRED",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "Reads rows where Status=Ready. Columns: ID | Topic | RawContent | Platforms | MediaURL | BestTimeSlot | Status | PostURL | PostedAt | Engagement"
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// FILTER: Only process rows due for posting\n// Checks BestTimeSlot against current hour\n// ============================================================\nconst now = new Date();\nconst currentHour = now.getHours();\nconst currentDay  = now.toISOString().split('T')[0]; // YYYY-MM-DD\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const row = item.json;\n\n  // Skip if already posted\n  if (row.Status === 'Posted' || row.Status === 'Failed') continue;\n  if (row.Status !== 'Ready') continue;\n\n  // Parse scheduled time slot (format: 'HH' or 'YYYY-MM-DD HH')\n  const slot = (row.BestTimeSlot || '').toString().trim();\n  const scheduledHour = slot.includes(' ') ? parseInt(slot.split(' ')[1]) : parseInt(slot);\n  const scheduledDate = slot.includes(' ') ? slot.split(' ')[0] : currentDay;\n\n  // Check if it's time to post\n  const isDue = (!slot) || // no time = post immediately\n                (scheduledDate === currentDay && scheduledHour === currentHour);\n\n  if (!isDue) continue;\n\n  // Parse platforms list\n  const platforms = (row.Platforms || 'linkedin,instagram,twitter')\n    .split(',').map(p => p.trim().toLowerCase()).filter(Boolean);\n\n  results.push({ json: {\n    row_id:       row.ID || row.RowNumber || '',\n    topic:        row.Topic || '',\n    raw_content:  row.RawContent || row.Content || '',\n    media_url:    row.MediaURL || '',\n    platforms,\n    tone:         row.Tone || 'professional',\n    hashtags:     row.Hashtags || '',\n    brand_voice:  row.BrandVoice || 'We are a tech startup focused on AI automation.',\n    scheduled_at: slot,\n    sheet_row:    row._rowNumber || 0\n  }});\n}\n\nconsole.log(`Due for posting: ${results.length} items`);\nreturn results.length > 0 ? results : [{ json: { skip: true, message: 'No items due' } }];"
+      },
+      "id": "node-filter-001",
+      "name": "🔀 Filter — Due for Posting",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-9520, 480]
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ]
+        }
+      },
+      "id": "node-if-skip-001",
+      "name": "🛑 IF — Nothing to Post",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-9280, 480]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// RSS FEED INGESTION — Auto-pull trending topics\n// Parses multiple RSS feeds and adds to queue\n// ============================================================\nconst feeds = [\n  'https://feeds.feedburner.com/TechCrunch',\n  'https://www.producthunt.com/feed',\n  'https://hnrss.org/frontpage'\n];\n\nconst items = [];\nfor (const item of $input.all()) {\n  if (!item.json.skip) {\n    items.push(item);\n  }\n}\nreturn items;"
+      },
+      "id": "node-rss-001",
+      "name": "📰 RSS Feed Processor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-9280, 640],
+      "notes": "Connect n8n RSS nodes here for auto trend detection"
+    },
+
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert social media content strategist for a tech startup. You create viral, platform-optimized content.\n\nBrand Voice: {{ $json.brand_voice }}\n\nYou will receive a topic/content brief and generate a FULL content package for all platforms.\n\nRespond ONLY with valid JSON — no markdown, no preamble:\n{\n  \"linkedin\": {\n    \"caption\": \"Professional LinkedIn post (150-300 words, storytelling format, starts with hook, includes 3 insights, ends with CTA)\",\n    \"hashtags\": [\"#AI\", \"#Automation\", \"#Tech\"],\n    \"hook\": \"Opening line that stops the scroll\"\n  },\n  \"instagram\": {\n    \"caption\": \"Engaging IG caption (50-150 words, emoji-rich, conversational)\",\n    \"hashtags\": [\"#startup\", \"#ai\", \"#automation\"],\n    \"story_text\": \"Short text for IG Story (under 40 chars)\"\n  },\n  \"twitter\": {\n    \"tweet\": \"Punchy tweet under 250 chars with 1-2 hashtags\",\n    \"thread\": [\"Tweet 1 (hook)\", \"Tweet 2 (insight)\", \"Tweet 3 (CTA)\"]\n  },\n  \"facebook\": {\n    \"post\": \"Friendly Facebook post (100-200 words, question at end to boost comments)\",\n    \"hashtags\": [\"#AI\", \"#Tech\"]\n  },\n  \"youtube\": {\n    \"title\": \"Clickbait-friendly YouTube title under 60 chars\",\n    \"description\": \"Full YT description with timestamps, keywords, links placeholder\",\n    \"tags\": [\"ai automation\", \"n8n\", \"workflow automation\"]\n  },\n  \"tiktok\": {\n    \"hook\": \"First 3 seconds script\",\n    \"caption\": \"Short TikTok caption under 100 chars\",\n    \"hashtags\": [\"#AIAutomation\", \"#TechTok\"]\n  }\n}"
+            },
+            {
+              "role": "user",
+              "content": "Topic: {{ $json.topic }}\n\nRaw Content/Brief: {{ $json.raw_content }}\n\nTone: {{ $json.tone }}\n\nAdditional Hashtags to include: {{ $json.hashtags }}\n\nGenerate a complete content package for all platforms."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 2000
+        }
+      },
+      "id": "node-openai-001",
+      "name": "🧠 OpenAI — Generate Content Package",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [-9040, 480],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_OPENAI_CRED",
+          "name": "OpenAI account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// PARSE & FORMAT AI CONTENT\n// Parse OpenAI JSON response and format per platform\n// ============================================================\nconst results = [];\n\nfor (const item of $input.all()) {\n  const meta = item.json;\n\n  // Parse AI response\n  let aiContent;\n  try {\n    const rawText = meta.message?.content || meta.content || meta.choices?.[0]?.message?.content || '';\n    const cleaned = rawText.replace(/```json\\n?/gi, '').replace(/```/gi, '').trim();\n    aiContent = JSON.parse(cleaned);\n  } catch (e) {\n    console.log('JSON parse error:', e.message);\n    aiContent = {\n      linkedin:  { caption: meta.raw_content, hashtags: [] },\n      instagram: { caption: meta.raw_content, hashtags: [] },\n      twitter:   { tweet: meta.raw_content.slice(0, 250) },\n      facebook:  { post: meta.raw_content },\n      youtube:   { title: meta.topic, description: meta.raw_content },\n      tiktok:    { caption: meta.raw_content.slice(0, 100) }\n    };\n  }\n\n  const platforms = meta.platforms || ['linkedin'];\n  const mediaUrl  = meta.media_url || '';\n  const topic     = meta.topic || '';\n  const rowId     = meta.row_id || '';\n  const sheetRow  = meta.sheet_row || 0;\n\n  // Best posting times (24h format, per platform)\n  const bestTimes = {\n    linkedin:  [8, 10, 12, 17],  // weekday mornings\n    instagram: [7, 11, 14, 19],  // morning + evening\n    twitter:   [8, 12, 17, 21],  // spread throughout day\n    facebook:  [9, 13, 15, 19],\n    youtube:   [14, 16, 18],\n    tiktok:    [7, 12, 19, 22]\n  };\n\n  // Generate per-platform post objects\n  for (const platform of platforms) {\n    if (!aiContent[platform]) continue;\n\n    const p = aiContent[platform];\n    let caption = '';\n    let hashtags = [];\n\n    switch (platform) {\n      case 'linkedin':\n        caption   = p.caption || '';\n        hashtags  = p.hashtags || [];\n        break;\n      case 'instagram':\n        caption   = p.caption || '';\n        hashtags  = p.hashtags || [];\n        break;\n      case 'twitter':\n        caption   = p.tweet || '';\n        hashtags  = [];\n        break;\n      case 'facebook':\n        caption   = p.post || '';\n        hashtags  = p.hashtags || [];\n        break;\n      case 'youtube':\n        caption   = p.description || '';\n        hashtags  = p.tags || [];\n        break;\n      case 'tiktok':\n        caption   = p.caption || '';\n        hashtags  = p.hashtags || [];\n        break;\n    }\n\n    // Build full text with hashtags\n    const hashtagStr = hashtags.map(h => h.startsWith('#') ? h : `#${h}`).join(' ');\n    const fullCaption = platform === 'twitter'\n      ? caption  // Twitter: already includes hashtags\n      : `${caption}\\n\\n${hashtagStr}`.trim();\n\n    results.push({ json: {\n      platform,\n      row_id:        rowId,\n      sheet_row:     sheetRow,\n      topic,\n      caption:       fullCaption,\n      media_url:     mediaUrl,\n      hashtags,\n      ai_full:       aiContent,\n      youtube_title: aiContent.youtube?.title || topic,\n      youtube_tags:  aiContent.youtube?.tags  || [],\n      tiktok_hook:   aiContent.tiktok?.hook   || '',\n      twitter_thread:aiContent.twitter?.thread || [],\n      linkedin_hook: aiContent.linkedin?.hook  || '',\n      ig_story:      aiContent.instagram?.story_text || '',\n      best_times:    bestTimes[platform] || [9],\n      created_at:    new Date().toISOString()\n    }});\n  }\n}\n\nconsole.log(`Formatted ${results.length} platform posts`);\nreturn results;"
+      },
+      "id": "node-format-001",
+      "name": "⚙️ Format — Parse AI + Build Platform Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-8800, 480]
+    },
+
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [{ "leftValue": "={{ $json.platform }}", "rightValue": "linkedin", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true, "outputKey": "LinkedIn"
+            },
+            {
+              "conditions": {
+                "conditions": [{ "leftValue": "={{ $json.platform }}", "rightValue": "instagram", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true, "outputKey": "Instagram"
+            },
+            {
+              "conditions": {
+                "conditions": [{ "leftValue": "={{ $json.platform }}", "rightValue": "twitter", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true, "outputKey": "Twitter"
+            },
+            {
+              "conditions": {
+                "conditions": [{ "leftValue": "={{ $json.platform }}", "rightValue": "facebook", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true, "outputKey": "Facebook"
+            },
+            {
+              "conditions": {
+                "conditions": [{ "leftValue": "={{ $json.platform }}", "rightValue": "youtube", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true, "outputKey": "YouTube"
+            },
+            {
+              "conditions": {
+                "conditions": [{ "leftValue": "={{ $json.platform }}", "rightValue": "tiktok", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true, "outputKey": "TikTok"
+            }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "node-router-001",
+      "name": "⇀ Route — Platform Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [-8560, 480]
+    },
+
+    {
+      "parameters": {
+        "url": "https://api.linkedin.com/v2/ugcPosts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-Restli-Protocol-Version", "value": "2.0.0" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"author\": \"urn:li:person:YOUR_LINKEDIN_PERSON_ID\",\n  \"lifecycleState\": \"PUBLISHED\",\n  \"specificContent\": {\n    \"com.linkedin.ugc.ShareContent\": {\n      \"shareCommentary\": {\n        \"text\": \"{{ $json.caption }}\"\n      },\n      \"shareMediaCategory\": \"{{ $json.media_url ? 'IMAGE' : 'NONE' }}\"\n    }\n  },\n  \"visibility\": {\n    \"com.linkedin.ugc.MemberNetworkVisibility\": \"PUBLIC\"\n  }\n}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "node-linkedin-post-001",
+      "name": "💼 LinkedIn — Post UGC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-8320, 260],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "continueOnFail": true,
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "REPLACE_LINKEDIN_CRED",
+          "name": "LinkedIn account"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/{{ $vars.INSTAGRAM_BUSINESS_ID }}/media",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "image_url", "value": "={{ $json.media_url }}" },
+            { "name": "caption",   "value": "={{ $json.caption }}" },
+            { "name": "access_token", "value": "={{ $vars.INSTAGRAM_ACCESS_TOKEN }}" }
+          ]
+        },
+        "options": { "timeout": 30000 }
+      },
+      "id": "node-ig-media-001",
+      "name": "📸 Instagram — Create Media Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-8320, 380],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "continueOnFail": true,
+      "notes": "Step 1 of 2 for Instagram posting. Creates media container."
+    },
+
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/{{ $vars.INSTAGRAM_BUSINESS_ID }}/media_publish",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "creation_id",  "value": "={{ $json.id }}" },
+            { "name": "access_token", "value": "={{ $vars.INSTAGRAM_ACCESS_TOKEN }}" }
+          ]
+        },
+        "options": { "timeout": 30000 }
+      },
+      "id": "node-ig-publish-001",
+      "name": "📸 Instagram — Publish Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-8080, 380],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "continueOnFail": true,
+      "notes": "Step 2 of 2. Publishes the created media container."
+    },
+
+    {
+      "parameters": {
+        "url": "https://api.twitter.com/2/tweets",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twitterOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"{{ $json.caption.slice(0, 280) }}\"\n}",
+        "options": { "timeout": 20000 }
+      },
+      "id": "node-twitter-001",
+      "name": "🐦 Twitter/X — Post Tweet",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-8320, 500],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "continueOnFail": true,
+      "credentials": {
+        "twitterOAuth2Api": {
+          "id": "REPLACE_TWITTER_CRED",
+          "name": "Twitter account"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/{{ $vars.FACEBOOK_PAGE_ID }}/feed",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "message",      "value": "={{ $json.caption }}" },
+            { "name": "access_token", "value": "={{ $vars.FACEBOOK_PAGE_TOKEN }}" }
+          ]
+        },
+        "options": { "timeout": 20000 }
+      },
+      "id": "node-facebook-001",
+      "name": "📘 Facebook — Post to Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-8320, 620],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/upload/youtube/v3/videos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "part", "value": "snippet,status" },
+            { "name": "uploadType", "value": "resumable" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"snippet\": {\n    \"title\": \"{{ $json.youtube_title }}\",\n    \"description\": \"{{ $json.caption }}\",\n    \"tags\": {{ JSON.stringify($json.youtube_tags) }},\n    \"categoryId\": \"22\"\n  },\n  \"status\": {\n    \"privacyStatus\": \"public\",\n    \"selfDeclaredMadeForKids\": false\n  }\n}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "node-youtube-001",
+      "name": "▶ YouTube — Upload Video Metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-8320, 740],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "continueOnFail": true,
+      "notes": "Initiates YouTube upload. For Shorts: video must be <60s vertical."
+    },
+
+    {
+      "parameters": {
+        "url": "https://open.tiktokapis.com/v2/post/publish/video/init/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type",  "value": "application/json; charset=UTF-8" },
+            { "name": "Authorization", "value": "Bearer {{ $vars.TIKTOK_ACCESS_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"post_info\": {\n    \"title\": \"{{ $json.caption.slice(0, 150) }}\",\n    \"privacy_level\": \"PUBLIC_TO_EVERYONE\",\n    \"disable_duet\": false,\n    \"disable_comment\": false,\n    \"disable_stitch\": false\n  },\n  \"source_info\": {\n    \"source\": \"PULL_FROM_URL\",\n    \"video_url\": \"{{ $json.media_url }}\"\n  }\n}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "node-tiktok-001",
+      "name": "🎵 TikTok — Publish Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-8320, 860],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// RESPONSE COLLECTOR\n// Normalizes API responses from all platforms\n// Extracts post URLs, IDs, and status codes\n// ============================================================\nconst results = [];\n\nfor (const item of $input.all()) {\n  const j = item.json;\n  const httpCode = j.statusCode || j.status || 200;\n  const success  = httpCode >= 200 && httpCode < 300 || j.id;\n\n  // Extract post URL/ID per platform\n  let postId  = null;\n  let postUrl = null;\n\n  if (j.id) {\n    // LinkedIn returns id as 'urn:li:share:...'\n    // Instagram returns numeric id\n    // Twitter returns data.id\n    // Facebook returns id\n    postId  = j.id || j.data?.id || '';\n    const platform = $input.first()?.json?.platform || 'unknown';\n    switch (platform) {\n      case 'linkedin':  postUrl = `https://www.linkedin.com/feed/update/${postId}`; break;\n      case 'instagram': postUrl = `https://www.instagram.com/p/${postId}`; break;\n      case 'twitter':   postUrl = `https://twitter.com/i/web/status/${postId}`; break;\n      case 'facebook':  postUrl = `https://www.facebook.com/${postId}`; break;\n      case 'youtube':   postUrl = `https://youtube.com/watch?v=${postId}`; break;\n      case 'tiktok':    postUrl = `https://www.tiktok.com/@user/video/${postId}`; break;\n    }\n  }\n\n  results.push({ json: {\n    platform:  j.platform  || 'unknown',\n    row_id:    j.row_id    || '',\n    sheet_row: j.sheet_row || 0,\n    topic:     j.topic     || '',\n    post_id:   postId,\n    post_url:  postUrl,\n    status:    success ? 'posted' : 'failed',\n    http_code: httpCode,\n    error:     success ? null : (j.message || j.error?.message || 'API error'),\n    posted_at: new Date().toISOString()\n  }});\n}\n\nreturn results;"
+      },
+      "id": "node-collector-001",
+      "name": "📦 Collect API Responses",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-7840, 560]
+    },
+
+    {
+      "parameters": {
+        "documentId": { "value": "YOUR_GOOGLE_SHEET_ID" },
+        "sheetName":  { "value": "ContentQueue" },
+        "operation":  "update",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status":   "={{ $json.status === 'posted' ? 'Posted' : 'Failed' }}",
+            "PostURL":  "={{ $json.post_url || '' }}",
+            "PostedAt": "={{ $json.posted_at }}",
+            "PostID":   "={{ $json.post_id || '' }}"
+          }
+        },
+        "where": {
+          "values": [{ "lookupColumn": "ID", "lookupValue": "={{ $json.row_id }}" }]
+        }
+      },
+      "id": "node-sheets-update-001",
+      "name": "📊 Google Sheets — Update Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [-7600, 560],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_GOOGLE_SHEETS_CRED",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "documentId": { "value": "YOUR_GOOGLE_SHEET_ID" },
+        "sheetName":  { "value": "PostLogs" },
+        "operation":  "appendOrUpdate",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.posted_at }}",
+            "Platform":  "={{ $json.platform }}",
+            "Topic":     "={{ $json.topic }}",
+            "Status":    "={{ $json.status }}",
+            "PostURL":   "={{ $json.post_url || '' }}",
+            "PostID":    "={{ $json.post_id || '' }}",
+            "Error":     "={{ $json.error || '' }}"
+          }
+        }
+      },
+      "id": "node-log-001",
+      "name": "📋 Log — Append to PostLogs Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [-7600, 700],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_GOOGLE_SHEETS_CRED",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue":  "={{ $json.status }}",
+              "rightValue": "failed",
+              "operator":   { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "node-if-failed-001",
+      "name": "🔴 IF — Post Failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-7360, 560]
+    },
+
+    {
+      "parameters": {
+        "chatId":  "={{ $vars.TELEGRAM_CHAT_ID }}",
+        "text":    "=🔴 *POST FAILED*\n\n📍 Platform: {{ $json.platform }}\n📝 Topic: {{ $json.topic }}\n❌ Error: {{ $json.error }}\n🕐 Time: {{ $json.posted_at }}\n\nAction required: Check credentials and retry.",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "node-telegram-error-001",
+      "name": "📱 Telegram — Error Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [-7120, 480],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_TELEGRAM_CRED",
+          "name": "Telegram account"
+        }
+      },
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "chatId":  "={{ $vars.TELEGRAM_CHAT_ID }}",
+        "text":    "=✅ *POST PUBLISHED*\n\n📍 Platform: {{ $json.platform }}\n📝 Topic: {{ $json.topic }}\n🔗 URL: {{ $json.post_url || 'N/A' }}\n🕐 Time: {{ $json.posted_at }}",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "node-telegram-success-001",
+      "name": "📱 Telegram — Success Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [-7120, 660],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_TELEGRAM_CRED",
+          "name": "Telegram account"
+        }
+      },
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 24 }] }
+      },
+      "id": "node-analytics-trigger-001",
+      "name": "⏰ Analytics Trigger (Daily)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-10000, 1000],
+      "notes": "Runs once a day to fetch engagement metrics from all platforms"
+    },
+
+    {
+      "parameters": {
+        "documentId": { "value": "YOUR_GOOGLE_SHEET_ID" },
+        "sheetName":  { "value": "PostLogs" },
+        "filtersUI": {
+          "values": [{ "lookupColumn": "Status", "lookupValue": "posted" }]
+        },
+        "options": { "returnAllMatches": true }
+      },
+      "id": "node-sheets-analytics-001",
+      "name": "📊 Read Posted Content for Analytics",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [-9760, 1000],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_GOOGLE_SHEETS_CRED",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/{{ $json.PostID }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "fields",       "value": "likes.summary(true),comments.summary(true),shares,reach,impressions" },
+            { "name": "access_token", "value": "={{ $vars.INSTAGRAM_ACCESS_TOKEN }}" }
+          ]
+        }
+      },
+      "id": "node-ig-analytics-001",
+      "name": "📈 Fetch Instagram/FB Engagement",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-9520, 1000],
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a social media analytics expert. Analyze engagement data and provide actionable recommendations.\n\nRespond with JSON:\n{\n  \"performance_score\": 7.5,\n  \"top_performing_topics\": [\"AI automation\", \"productivity\"],\n  \"best_performing_platform\": \"linkedin\",\n  \"best_posting_time\": \"9am weekdays\",\n  \"recommendations\": [\"Increase video content\", \"Post more threads on Twitter\"],\n  \"content_ideas\": [\"5 AI tools that save 10 hours/week\", \"Behind the scenes of automation\"]\n}"
+            },
+            {
+              "role": "user",
+              "content": "=Analyze this week's engagement data and provide recommendations:\n\n{{ JSON.stringify($input.all().map(i => i.json)) }}"
+            }
+          ]
+        },
+        "options": { "temperature": 0.4, "maxTokens": 1000 }
+      },
+      "id": "node-analytics-ai-001",
+      "name": "🧠 AI Analytics — Insights & Recommendations",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [-9280, 1000],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_OPENAI_CRED",
+          "name": "OpenAI account"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "documentId": { "value": "YOUR_GOOGLE_SHEET_ID" },
+        "sheetName":  { "value": "Analytics" },
+        "operation":  "appendOrUpdate",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date":              "={{ new Date().toISOString().split('T')[0] }}",
+            "Insights":          "={{ $json.message?.content || '' }}",
+            "TopTopics":         "Analysis logged",
+            "Recommendations":   "See Insights column"
+          }
+        }
+      },
+      "id": "node-analytics-log-001",
+      "name": "📊 Log Analytics to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [-9040, 1000],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_GOOGLE_SHEETS_CRED",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 15 }] }
+      },
+      "id": "node-dm-trigger-001",
+      "name": "⏰ DM Monitor Trigger (Every 15min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-10000, 1400],
+      "notes": "Lead gen: monitors for new DMs and comments"
+    },
+
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/me/conversations",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "fields",       "value": "messages{message,from,created_time}" },
+            { "name": "access_token", "value": "={{ $vars.INSTAGRAM_ACCESS_TOKEN }}" }
+          ]
+        }
+      },
+      "id": "node-ig-dms-001",
+      "name": "📨 Fetch New Instagram DMs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-9760, 1400],
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a friendly social media assistant for a tech startup. Respond to DMs professionally and helpfully.\n\nRules:\n- Keep responses under 150 words\n- Be warm and helpful\n- If asking about pricing → direct to website\n- If asking about services → explain AI automation services\n- If complaint → apologize and offer to escalate\n- Always end with a question to keep conversation going\n\nBrand: We help businesses automate workflows with AI. Website: yoursite.com"
+            },
+            {
+              "role": "user",
+              "content": "=Respond to this DM:\n\nFrom: {{ $json.from?.username || 'User' }}\nMessage: {{ $json.message }}"
+            }
+          ]
+        },
+        "options": { "temperature": 0.6, "maxTokens": 300 }
+      },
+      "id": "node-dm-ai-001",
+      "name": "🧠 AI — Generate DM Reply",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [-9520, 1400],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_OPENAI_CRED",
+          "name": "OpenAI account"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/{{ $json.conversation_id }}/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "access_token", "value": "={{ $vars.INSTAGRAM_ACCESS_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"message\": {\"text\": \"{{ $json.message?.content || '' }}\"}}"
+      },
+      "id": "node-ig-reply-001",
+      "name": "💬 Send Auto DM Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-9280, 1400],
+      "continueOnFail": true
+    }
+
+  ],
+
+  "connections": {
+    "⏰ Schedule Trigger (Every Hour)": {
+      "main": [[{ "node": "📊 Google Sheets — Read Content Queue", "type": "main", "index": 0 }]]
+    },
+    "▶ Manual Trigger": {
+      "main": [[{ "node": "📊 Google Sheets — Read Content Queue", "type": "main", "index": 0 }]]
+    },
+    "📊 Google Sheets — Read Content Queue": {
+      "main": [[{ "node": "🔀 Filter — Due for Posting", "type": "main", "index": 0 }]]
+    },
+    "🔀 Filter — Due for Posting": {
+      "main": [[{ "node": "🛑 IF — Nothing to Post", "type": "main", "index": 0 }]]
+    },
+    "🛑 IF — Nothing to Post": {
+      "main": [
+        [],
+        [{ "node": "🧠 OpenAI — Generate Content Package", "type": "main", "index": 0 }]
+      ]
+    },
+    "🧠 OpenAI — Generate Content Package": {
+      "main": [[{ "node": "⚙️ Format — Parse AI + Build Platform Posts", "type": "main", "index": 0 }]]
+    },
+    "⚙️ Format — Parse AI + Build Platform Posts": {
+      "main": [[{ "node": "⇀ Route — Platform Switch", "type": "main", "index": 0 }]]
+    },
+    "⇀ Route — Platform Switch": {
+      "main": [
+        [{ "node": "💼 LinkedIn — Post UGC",             "type": "main", "index": 0 }],
+        [{ "node": "📸 Instagram — Create Media Container", "type": "main", "index": 0 }],
+        [{ "node": "🐦 Twitter/X — Post Tweet",          "type": "main", "index": 0 }],
+        [{ "node": "📘 Facebook — Post to Page",          "type": "main", "index": 0 }],
+        [{ "node": "▶ YouTube — Upload Video Metadata",   "type": "main", "index": 0 }],
+        [{ "node": "🎵 TikTok — Publish Video",           "type": "main", "index": 0 }]
+      ]
+    },
+    "📸 Instagram — Create Media Container": {
+      "main": [[{ "node": "📸 Instagram — Publish Post", "type": "main", "index": 0 }]]
+    },
+    "💼 LinkedIn — Post UGC":              { "main": [[{ "node": "📦 Collect API Responses", "type": "main", "index": 0 }]] },
+    "📸 Instagram — Publish Post":         { "main": [[{ "node": "📦 Collect API Responses", "type": "main", "index": 0 }]] },
+    "🐦 Twitter/X — Post Tweet":           { "main": [[{ "node": "📦 Collect API Responses", "type": "main", "index": 0 }]] },
+    "📘 Facebook — Post to Page":          { "main": [[{ "node": "📦 Collect API Responses", "type": "main", "index": 0 }]] },
+    "▶ YouTube — Upload Video Metadata":   { "main": [[{ "node": "📦 Collect API Responses", "type": "main", "index": 0 }]] },
+    "🎵 TikTok — Publish Video":           { "main": [[{ "node": "📦 Collect API Responses", "type": "main", "index": 0 }]] },
+    "📦 Collect API Responses": {
+      "main": [[{ "node": "📊 Google Sheets — Update Status", "type": "main", "index": 0 }]]
+    },
+    "📊 Google Sheets — Update Status": {
+      "main": [[{ "node": "📋 Log — Append to PostLogs Sheet", "type": "main", "index": 0 }]]
+    },
+    "📋 Log — Append to PostLogs Sheet": {
+      "main": [[{ "node": "🔴 IF — Post Failed?", "type": "main", "index": 0 }]]
+    },
+    "🔴 IF — Post Failed?": {
+      "main": [
+        [{ "node": "📱 Telegram — Error Alert",   "type": "main", "index": 0 }],
+        [{ "node": "📱 Telegram — Success Alert", "type": "main", "index": 0 }]
+      ]
+    },
+    "⏰ Analytics Trigger (Daily)": {
+      "main": [[{ "node": "📊 Read Posted Content for Analytics", "type": "main", "index": 0 }]]
+    },
+    "📊 Read Posted Content for Analytics": {
+      "main": [[{ "node": "📈 Fetch Instagram/FB Engagement", "type": "main", "index": 0 }]]
+    },
+    "📈 Fetch Instagram/FB Engagement": {
+      "main": [[{ "node": "🧠 AI Analytics — Insights & Recommendations", "type": "main", "index": 0 }]]
+    },
+    "🧠 AI Analytics — Insights & Recommendations": {
+      "main": [[{ "node": "📊 Log Analytics to Sheet", "type": "main", "index": 0 }]]
+    },
+    "⏰ DM Monitor Trigger (Every 15min)": {
+      "main": [[{ "node": "📨 Fetch New Instagram DMs", "type": "main", "index": 0 }]]
+    },
+    "📨 Fetch New Instagram DMs": {
+      "main": [[{ "node": "🧠 AI — Generate DM Reply", "type": "main", "index": 0 }]]
+    },
+    "🧠 AI — Generate DM Reply": {
+      "main": [[{ "node": "💬 Send Auto DM Reply", "type": "main", "index": 0 }]]
+    }
+  },
+
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "meta": {
+    "templateId": "social-media-ai-automation-v1",
+    "instanceId": "social-media-full-stack"
+  },
+  "tags": [
+    { "name": "social-media" }, { "name": "ai-automation" },
+    { "name": "content-generation" }, { "name": "multi-platform" },
+    { "name": "lead-generation" }
+  ]
+}
